@@ -1,9 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-  // In Vite, env vars are accessed via import.meta.env and MUST start with VITE_
-  // For local development this falls back to localhost
-  baseURL: import.meta.env.VITE_BACKEND_URL,
+  // Use Vercel's env var when deployed, otherwise use localhost for your computer
+  baseURL: import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
 });
 
 api.interceptors.request.use((config) => {
