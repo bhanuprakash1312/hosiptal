@@ -2,16 +2,19 @@ import Navbar from "../../components/common/Navbar";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, logout } from "../../services/authService";
+import LoadingScreen from "../../components/common/LoadingScreen";
 
 const DoctorLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
     
     try {
       const res = await login(email, password);
@@ -23,10 +26,12 @@ const DoctorLogin = () => {
         logout();
         setError("Unauthorized access. This portal is for healthcare providers only. Redirecting to patient portal...");
         setTimeout(() => {
+          setIsLoading(false);
           navigate("/login");
         }, 3000);
       }
     } catch (err) {
+      setIsLoading(false);
       setError(err.response?.data?.detail || "Login failed");
     }
   };
@@ -35,6 +40,8 @@ const DoctorLogin = () => {
     e.preventDefault();
     alert("Please contact the hospital IT administrator to reset your provider password.");
   };
+
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <div className="page-container" style={{ background: 'var(--bg-primary)' }}>

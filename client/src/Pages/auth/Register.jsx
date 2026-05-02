@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import Navbar from "../../components/common/Navbar";
+import LoadingScreen from "../../components/common/LoadingScreen";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,16 +11,24 @@ const Register = () => {
     email: "",
     phone: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
 
-    await api.post("/auth/register", form);
-
-    navigate("/verify-otp", {
-      state: { email: form.email },
-    });
+    try {
+      await api.post("/auth/register", form);
+      navigate("/verify-otp", {
+        state: { email: form.email },
+      });
+    } catch (err) {
+      setIsLoading(false);
+      alert("Registration failed");
+    }
   };
+
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <div className="page-container">

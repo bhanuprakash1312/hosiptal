@@ -2,20 +2,28 @@ import Navbar from "../../components/common/Navbar";
 import { Link } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import { useState } from "react";
+import LoadingScreen from "../../components/common/LoadingScreen";
 
 
 const ReviewAppointment = () => {
   const {state} = useLocation();
   const navigate = useNavigate();
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const confirmAppointment = async () => {
+    setIsLoading(true);
     try {
       await api.post("/appointments", state);
       navigate("/appointment-success");
     } catch (err) {
+      setIsLoading(false);
       alert(err.response?.data?.detail || "Booking failed");
     }
   };
+
+  if (isLoading) return <LoadingScreen />;
   return (
     <div className="page-container">
       <Navbar />

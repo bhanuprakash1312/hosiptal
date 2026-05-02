@@ -2,16 +2,19 @@ import Navbar from "../../components/common/Navbar";
 import { useState  } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, logout } from "../../services/authService";
+import LoadingScreen from "../../components/common/LoadingScreen";
 
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     try {
       const res = await login(email,password);
@@ -19,6 +22,7 @@ const Login = () => {
         logout();
         setError("You are attempting to log in as a doctor. Redirecting to Provider Portal...");
         setTimeout(() => {
+          setIsLoading(false);
           navigate("/doctor/login");
         }, 3000);
       } else if (res.role === "ADMIN") {
@@ -27,6 +31,7 @@ const Login = () => {
         navigate("/dashboard");
       }
     } catch (err) {
+      setIsLoading(false);
       setError(err.response?.data?.detail || "Login failed");
     }
   };
@@ -35,6 +40,8 @@ const Login = () => {
     e.preventDefault();
     navigate("/forgot-password");
   };
+
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <div className="page-container">
