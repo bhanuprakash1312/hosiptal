@@ -12,6 +12,7 @@ import CompleteRegistration from './Pages/auth/CompleteRegistration'
 import Dashboard from './Pages/patient/PatientDashboard'
 import ChatPage from './Pages/doctor/ChatPage'
 import DoctorDashboard from './Pages/doctor/DoctorDashboard'
+import DoctorSchedule from './Pages/doctor/DoctorSchedule'
 import DoctorLogin from './Pages/auth/DoctorLogin'
 import ForgotPassword from './Pages/auth/ForgotPassword'
 import VerifyOtpPassword from './Pages/auth/VerifyOtpPassword'
@@ -68,6 +69,11 @@ const App = () => {
         <Route path="/doctor" element={
           <ProtectedRoute>
             <DoctorDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/doctor/schedule" element={
+          <ProtectedRoute>
+            <DoctorSchedule />
           </ProtectedRoute>
         } />
         <Route path="/verify-otp" element={<VerifyOtp />} />

@@ -61,9 +61,14 @@ const DoctorDashboard = () => {
             <p style={{color: 'var(--text-secondary)', marginTop: '0.5rem'}}>Manage your schedule and consultations.</p>
           </div>
           
-          <button onClick={handleLogout} className="btn-secondary" style={{borderColor: '#ef4444', color: '#ef4444', display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-            <LogOut size={20} /> Logout
-          </button>
+          <div style={{display: 'flex', gap: '1rem'}}>
+            <button onClick={() => navigate("/doctor/schedule")} className="btn-secondary" style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+              <Calendar size={20} /> Manage Availability
+            </button>
+            <button onClick={handleLogout} className="btn-secondary" style={{borderColor: '#ef4444', color: '#ef4444', display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+              <LogOut size={20} /> Logout
+            </button>
+          </div>
         </div>
 
         {/* QUICK STATS */}

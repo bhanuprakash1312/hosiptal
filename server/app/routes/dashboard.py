@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_doctor
 from app.database import get_db
 from app.models.appointment import Appointment
+from app.models.blocked_slot import BlockedSlot
+from app.schemas.doctor import BlockedSlotCreate
 from app.models.user import User
 
 router = APIRouter(prefix="/doctor", tags=["Doctor Dashboard"])
@@ -59,3 +61,34 @@ def delete_appointment(
     db.delete(appt)
     db.commit()
     return {"message": "Appointment removed successfully"}
+
+@router.get("/blocked-slots")
+def get_blocked_slots(db: Session = Depends(get_db), doctor: User = Depends(get_current_doctor)):
+    return db.query(BlockedSlot).filter(BlockedSlot.doctor_id == doctor.id).all()
+
+@router.post("/blocked-slots")
+def create_blocked_slot(data: BlockedSlotCreate, db: Session = Depends(get_db), doctor: User = Depends(get_current_doctor)):
+    # Check if already exists
+    existing = db.query(BlockedSlot).filter(
+        BlockedSlot.doctor_id == doctor.id,
+        BlockedSlot.date == data.date,
+        BlockedSlot.time_slot == data.time_slot
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Slot already blocked")
+        
+    slot = BlockedSlot(doctor_id=doctor.id, date=data.date, time_slot=data.time_slot)
+    db.add(slot)
+    db.commit()
+    db.refresh(slot)
+    return slot
+
+@router.delete("/blocked-slots/{slot_id}")
+def delete_blocked_slot(slot_id: int, db: Session = Depends(get_db), doctor: User = Depends(get_current_doctor)):
+    slot = db.query(BlockedSlot).filter(BlockedSlot.id == slot_id, BlockedSlot.doctor_id == doctor.id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Blocked slot not found")
+    db.delete(slot)
+    db.commit()
+    return {"message": "Blocked slot removed"}

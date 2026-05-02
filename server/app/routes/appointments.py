@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal , get_db
 from app.models.appointment import Appointment
 from app.models.patient import Patient
+from app.models.blocked_slot import BlockedSlot
 from app.schemas.appointment import AppointmentCreate
 from datetime import date
 from app.core.deps import get_current_user
@@ -51,6 +52,48 @@ def book_appointment(
         "message": "Appointment booked successfully",
         "appointment_id": appointment.id
     }
+
+@router.get("/available-slots")
+def get_available_slots(
+    doctor_id: int,
+    appointment_date: date,
+    db: Session = Depends(get_db)
+):
+    all_slots = [
+        "09:00 AM", "09:30 AM", "10:00 AM",
+        "10:30 AM", "11:00 AM", "04:00 PM",
+    ]
+
+    # Check for whole day block
+    whole_day_block = db.query(BlockedSlot).filter(
+        BlockedSlot.doctor_id == doctor_id,
+        BlockedSlot.date == appointment_date,
+        BlockedSlot.time_slot == None
+    ).first()
+
+    if whole_day_block:
+        return []
+
+    # Get blocked specific slots
+    blocked_slots_db = db.query(BlockedSlot.time_slot).filter(
+        BlockedSlot.doctor_id == doctor_id,
+        BlockedSlot.date == appointment_date,
+        BlockedSlot.time_slot != None
+    ).all()
+    blocked_slots = [s[0] for s in blocked_slots_db]
+
+    # Get booked appointments
+    booked_appointments = db.query(Appointment.time_slot).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.appointment_date == appointment_date,
+        Appointment.status == "BOOKED"
+    ).all()
+    booked_slots = [s[0] for s in booked_appointments]
+
+    unavailable_slots = set(blocked_slots + booked_slots)
+    available_slots = [slot for slot in all_slots if slot not in unavailable_slots]
+
+    return available_slots
 @router.get("/patient/me")
 def get_my_appointments(
     current_user = Depends(get_current_user),

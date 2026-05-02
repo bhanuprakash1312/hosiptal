@@ -3,17 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 
-const slots = [
-  "09:00 AM", "09:30 AM", "10:00 AM",
-  "10:30 AM", "11:00 AM", "04:00 PM",
-];
-
 const BookAppointment = () => {
   const navigate = useNavigate();
 
   const [departments, setDepartments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [selectedDept, setSelectedDept] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
 
   const [appointment, setAppointment] = useState({
     doctor_id: null,
@@ -37,6 +33,23 @@ const BookAppointment = () => {
       .then(res => setDoctors(res.data))
       .catch(() => alert("Failed to load doctors"));
   }, [selectedDept]);
+
+  /* ---------------- FETCH AVAILABLE SLOTS ---------------- */
+  useEffect(() => {
+    if (appointment.doctor_id && appointment.appointment_date) {
+      api.get(`/appointments/available-slots?doctor_id=${appointment.doctor_id}&appointment_date=${appointment.appointment_date}`)
+        .then(res => {
+          setAvailableSlots(res.data);
+          // If the currently selected slot is no longer available, clear it
+          if (!res.data.includes(appointment.time_slot)) {
+            setAppointment(a => ({ ...a, time_slot: "" }));
+          }
+        })
+        .catch(() => alert("Failed to fetch available slots"));
+    } else {
+      setAvailableSlots([]);
+    }
+  }, [appointment.doctor_id, appointment.appointment_date]);
 
   /* ---------------- REVIEW ---------------- */
   const handleReview = () => {
@@ -160,24 +173,31 @@ const BookAppointment = () => {
           {/* TIME SLOT */}
           <div style={{marginBottom: '2.5rem'}}>
             <h3 className="text-subtitle" style={{fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)'}}>Available Time Slots</h3>
-            <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem'}}>
-              {slots.map(slot => (
-                <button
-                  key={slot}
-                  onClick={() =>
-                    setAppointment(a => ({ ...a, time_slot: slot }))
-                  }
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.8rem 1.25rem',
-                    backgroundColor: appointment.time_slot === slot ? 'var(--text-primary)' : 'var(--white-glass)',
-                    color: appointment.time_slot === slot ? '#fff' : 'var(--text-primary)',
-                  }}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
+            
+            {!appointment.doctor_id || !appointment.appointment_date ? (
+              <p style={{color: 'var(--text-secondary)'}}>Please select a doctor and date first.</p>
+            ) : availableSlots.length === 0 ? (
+              <p style={{color: '#ef4444', fontWeight: 600}}>No slots available for this date. The doctor might be unavailable or fully booked.</p>
+            ) : (
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem'}}>
+                {availableSlots.map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() =>
+                      setAppointment(a => ({ ...a, time_slot: slot }))
+                    }
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.8rem 1.25rem',
+                      backgroundColor: appointment.time_slot === slot ? 'var(--text-primary)' : 'var(--white-glass)',
+                      color: appointment.time_slot === slot ? '#fff' : 'var(--text-primary)',
+                    }}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* CONFIRM */}
