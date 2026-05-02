@@ -38,3 +38,24 @@ def update_status(
     appt.status = status
     db.commit()
     return {"message": "Status updated"}
+
+@router.delete("/appointments/{appointment_id}")
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    doctor: User = Depends(get_current_doctor)
+):
+    appt = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.doctor_id == doctor.id
+    ).first()
+
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    if appt.status not in ["CANCELLED", "COMPLETED"]:
+        raise HTTPException(status_code=400, detail="Can only remove cancelled or completed appointments")
+
+    db.delete(appt)
+    db.commit()
+    return {"message": "Appointment removed successfully"}

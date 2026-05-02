@@ -110,3 +110,31 @@ def rechedule_appointement(appointment_id :int, data:AppointmentCreate, current_
 
     db.commit()
     return {"message": "Appointment rescheduled successfully"}
+
+@router.delete("/{appointment_id}", dependencies=[Depends(get_current_user)])
+def delete_appointment(
+    appointment_id: int,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    patient = db.query(Patient).filter(
+        Patient.user_id == current_user.id
+    ).first()
+    
+    if not patient:
+        raise HTTPException(status_code=400, detail="Patient profile not found")
+        
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.patient_id == patient.id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    if appointment.status not in ["CANCELLED", "COMPLETED"]:
+        raise HTTPException(status_code=400, detail="Can only remove cancelled or completed appointments")
+        
+    db.delete(appointment)
+    db.commit()
+    return {"message": "Appointment removed successfully"}

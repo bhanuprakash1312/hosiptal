@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Home from './Pages/home'
 import Login from './Pages/auth/Login'
 import { Route, Routes } from 'react-router-dom'
@@ -20,8 +20,23 @@ import AdminDashboard from './Pages/admin/AdminDashboard'
 
 import ManageDepartements from './Pages/admin/ManageDepartements'
 import ManageDoctors from './Pages/admin/ManageDoctors'
+import LoadingScreen from './components/common/LoadingScreen'
 
 const App = () => {
+  const [initialLoading, setInitialLoading] = useState(true)
+
+  useEffect(() => {
+    // Simulate initial app loading / auth check for smooth UI entry
+    const timer = setTimeout(() => {
+      setInitialLoading(false)
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (initialLoading) {
+    return <LoadingScreen fullScreen={true} message="Initializing Hospital Portal..." />
+  }
+
   return (
     <div>
       <Routes>
