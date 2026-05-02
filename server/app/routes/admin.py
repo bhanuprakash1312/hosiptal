@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
+from pydantic import BaseModel, EmailStr
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from app.models.patient import Patient
@@ -35,6 +36,26 @@ def get_admin_stats(db: Session = Depends(get_db)):
         "total_doctors": total_doctors,
         "total_departments": total_departments,
         "daily_appointments": daily_appointments
+    }
+
+@router.get("/chart_data")
+def get_chart_data(db: Session = Depends(get_db)):
+    trends = []
+    today = datetime.utcnow().date()
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        count = db.query(Appointment).filter(Appointment.appointment_date == d).count()
+        trends.append({"name": d.strftime("%a"), "appointments": count})
+
+    dept_stats = []
+    departments = db.query(Department).all()
+    for dept in departments:
+        count = db.query(Appointment).join(Doctor).filter(Doctor.department_id == dept.id).count()
+        dept_stats.append({"name": dept.name[:6] if len(dept.name) > 6 else dept.name, "patients": count})
+
+    return {
+        "appointmentTrends": trends,
+        "departmentStats": dept_stats
     }
 
 @router.get("/departments")
