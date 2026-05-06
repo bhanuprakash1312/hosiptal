@@ -97,77 +97,75 @@ def get_messages(
     ]
 
 @router.websocket("/chat/ws/{conversation_id}")
-async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str, db: Session = Depends(get_db)):
-    # 1. Verify token manually since WebSockets don't easily use HTTP Headers
+async def websocket_chat(websocket: WebSocket, conversation_id: int, token: str):
+    # 1. Get a fresh DB session for initial auth
+    from app.database import SessionLocal
+    db = SessionLocal()
+    
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id_str = payload.get("sub")
-        if user_id_str is None:
+        # Verify token manually
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id_str = payload.get("sub")
+            if user_id_str is None:
+                await websocket.close(code=1008, reason="Invalid token")
+                return
+            user_id = int(user_id_str)
+        except JWTError:
             await websocket.close(code=1008, reason="Invalid token")
             return
-        user_id = int(user_id_str)
-    except JWTError:
-        await websocket.close(code=1008, reason="Invalid token")
-        return
 
-    # 2. Get User & Convo
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        await websocket.close(code=1008, reason="User not found")
-        return
+        user = db.query(User).filter(User.id == user_id).first()
+        convo = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        
+        if not user or not convo or (user.id != convo.patient_id and user.id != convo.doctor_id):
+            await websocket.close(code=1008, reason="Unauthorized")
+            return
 
-    convo = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not convo:
-        await websocket.close(code=1008, reason="Conversation not found")
-        return
-
-    # 3. Security Boundary: Ensure only assigned Patient or Doctor can join
-    if user.id != convo.patient_id and user.id != convo.doctor_id:
-        await websocket.close(code=1008, reason="Not authorized for this chat room")
-        return
-
-    # 4. Connect
-    await manager.connect(websocket, conversation_id)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            try:
-                payload = json.loads(data)
-                
-                # Check if this is a WebRTC signaling message
-                msg_type = payload.get("type")
-                if msg_type in ["offer", "answer", "ice-candidate", "end-call"]:
-                    # Just broadcast signaling data, don't save to DB
-                    payload["sender_role"] = user.role
-                    payload["sender_name"] = user.name
-                    await manager.broadcast(json.dumps(payload), conversation_id)
-                    continue
-
-                text_msg = payload.get("message", "").strip()
-                if text_msg:
-                    # Save DB
-                    msg = Message(
-                        conversation_id=conversation_id,
-                        sender_id=user.id,
-                        sender_role=user.role,
-                        message=text_msg
-                    )
-                    db.add(msg)
-                    db.commit()
-                    db.refresh(msg)
+        # 4. Connect
+        await manager.connect(websocket, conversation_id)
+        
+        try:
+            while True:
+                data = await websocket.receive_text()
+                try:
+                    payload = json.loads(data)
+                    msg_type = payload.get("type")
                     
-                    out_msg = {
-                        "id": msg.id,
-                        "conversation_id": msg.conversation_id,
-                        "sender_id": msg.sender_id,
-                        "sender_role": msg.sender_role,
-                        "sender_name": user.name,
-                        "message": msg.message,
-                        "created_at": msg.created_at.isoformat(),
-                        "type": "chat"
-                    }
-                    await manager.broadcast(json.dumps(out_msg), conversation_id)
-            except json.JSONDecodeError:
-                pass
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, conversation_id)
+                    if msg_type in ["offer", "answer", "ice-candidate", "end-call"]:
+                        payload["sender_role"] = user.role
+                        payload["sender_name"] = user.name
+                        await manager.broadcast(json.dumps(payload), conversation_id)
+                        continue
+
+                    text_msg = payload.get("message", "").strip()
+                    if text_msg:
+                        # Use a fresh session context for saving the message
+                        with SessionLocal() as fresh_db:
+                            msg = Message(
+                                conversation_id=conversation_id,
+                                sender_id=user.id,
+                                sender_role=user.role,
+                                message=text_msg
+                            )
+                            fresh_db.add(msg)
+                            fresh_db.commit()
+                            fresh_db.refresh(msg)
+                            
+                            out_msg = {
+                                "id": msg.id,
+                                "conversation_id": msg.conversation_id,
+                                "sender_id": msg.sender_id,
+                                "sender_role": msg.sender_role,
+                                "sender_name": user.name,
+                                "message": msg.message,
+                                "created_at": msg.created_at.isoformat(),
+                                "type": "chat"
+                            }
+                            await manager.broadcast(json.dumps(out_msg), conversation_id)
+                except json.JSONDecodeError:
+                    pass
+        except WebSocketDisconnect:
+            manager.disconnect(websocket, conversation_id)
+    finally:
+        db.close()
