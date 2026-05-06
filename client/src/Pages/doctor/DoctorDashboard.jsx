@@ -53,7 +53,7 @@ const DoctorDashboard = () => {
       <div className="container-xl" style={{paddingTop: '4rem', paddingBottom: '4rem'}}>
         
         {/* HEADER */}
-        <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem', marginBottom: '3rem'}}>
+        <div className="dashboard-header">
           <div>
             <h2 className="title-hero" style={{fontSize: '2.5rem', margin: 0}}>
               Doctor Dashboard
@@ -61,7 +61,7 @@ const DoctorDashboard = () => {
             <p style={{color: 'var(--text-secondary)', marginTop: '0.5rem'}}>Manage your schedule and consultations.</p>
           </div>
           
-          <div style={{display: 'flex', gap: '1rem'}}>
+          <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap'}}>
             <button onClick={() => navigate("/doctor/schedule")} className="btn-secondary" style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
               <Calendar size={20} /> Manage Availability
             </button>
@@ -72,7 +72,7 @@ const DoctorDashboard = () => {
         </div>
 
         {/* QUICK STATS */}
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '3rem'}}>
+        <div className="stats-grid">
           <div className="glass-panel" style={{padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem'}}>
             <div style={{background: 'rgba(59, 130, 246, 0.1)', padding: '1rem', borderRadius: '1rem', color: '#3b82f6'}}>
               <Users size={28} />
@@ -126,14 +126,14 @@ const DoctorDashboard = () => {
             No appointments found matching your criteria.
           </div>
         ) : (
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem'}}>
+          <div className="appointment-grid">
             {filteredAppointments.map(appt => (
               <div
                 key={appt.id}
                 className="glass-panel"
                 style={{padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}
               >
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem'}}>
                   <h3 style={{fontWeight: '700', fontSize: '1.25rem', color: 'var(--text-primary)'}}>
                     <span style={{color: 'var(--accent-blue)'}}>{appt.appointment_date}</span> • {appt.time_slot}
                   </h3>
@@ -156,7 +156,7 @@ const DoctorDashboard = () => {
                 </p>
 
                 {appt.status === "BOOKED" && (
-                  <div style={{display: 'flex', gap: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)', marginTop: 'auto'}}>
+                  <div className="appointment-actions" style={{paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)', marginTop: 'auto'}}>
                     <button
                       onClick={() => navigate(`/chat/${appt.id}`)}
                       className="btn-primary"
@@ -184,7 +184,7 @@ const DoctorDashboard = () => {
                 )}
 
                 {(appt.status === "CANCELLED" || appt.status === "COMPLETED") && (
-                  <div style={{display: 'flex', gap: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)', marginTop: 'auto'}}>
+                  <div className="appointment-actions" style={{paddingTop: '1.5rem', borderTop: '1px solid var(--border-glass)', marginTop: 'auto'}}>
                     <button
                       onClick={() => {
                         api.delete(`/doctor/appointments/${appt.id}`)

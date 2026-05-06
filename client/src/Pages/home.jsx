@@ -81,8 +81,8 @@ const Home = () => {
       </section>
 
       {/* HOW IT WORKS */}
-      <section className="features-section" style={{paddingTop: '2rem', paddingBottom: '8rem'}}>
-        <div className="glass-panel" style={{maxWidth: '1200px', margin: '0 auto', padding: '4rem'}}>
+      <section className="features-section" style={{paddingTop: '2rem', paddingBottom: '6rem'}}>
+        <div className="glass-panel" style={{maxWidth: '1200px', margin: '0 auto', padding: 'clamp(1.5rem, 5vw, 4rem)'}}>
           <h2 className="section-title" style={{marginBottom: '3rem'}}>How It Works</h2>
 
           <div className="features-grid" style={{gap: '1.5rem'}}>
@@ -92,10 +92,10 @@ const Home = () => {
               "Confirm your appointment in seconds",
             ].map((step, idx) => (
               <div key={idx} style={{textAlign: 'center', padding: '1rem'}}>
-                <div className="text-gradient" style={{fontSize: '3rem', fontWeight: '800', marginBottom: '1rem'}}>
+                <div className="text-gradient" style={{fontSize: 'clamp(2.5rem, 5vw, 3rem)', fontWeight: '800', marginBottom: '1rem'}}>
                   {idx + 1}
                 </div>
-                <p className="feature-desc" style={{fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: '500'}}>{step}</p>
+                <p className="feature-desc" style={{fontSize: '1.15rem', color: 'var(--text-primary)', fontWeight: '500'}}>{step}</p>
               </div>
             ))}
           </div>

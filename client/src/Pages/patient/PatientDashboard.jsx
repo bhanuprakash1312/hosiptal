@@ -37,7 +37,7 @@ const Dashboard = () => {
       <div className="container-xl" style={{paddingTop: '4rem', paddingBottom: '4rem'}}>
 
         {/* HEADER */}
-        <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem', marginBottom: '3rem'}}>
+        <div className="dashboard-header">
           <div>
             <h1 className="title-hero" style={{fontSize: '2.5rem', margin: 0}}>
               Patient Dashboard
@@ -45,7 +45,7 @@ const Dashboard = () => {
             <p style={{color: 'var(--text-secondary)', marginTop: '0.5rem'}}>Welcome back! Here is your health overview.</p>
           </div>
 
-          <div style={{display: 'flex', gap: '1rem'}}>
+          <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap'}}>
             <button onClick={() => navigate("/book-appointment")} className="btn-primary" style={{gap: '0.5rem'}}>
               <Plus size={20} /> Book Appointment
             </button>
@@ -57,7 +57,7 @@ const Dashboard = () => {
         </div>
 
         {/* HEALTH VITALS WIDGETS */}
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '3rem'}}>
+        <div className="stats-grid">
           <div className="glass-panel" style={{padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem'}}>
             <div style={{background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '1rem', color: '#ef4444'}}>
               <Heart size={28} />
@@ -90,7 +90,7 @@ const Dashboard = () => {
         </div>
 
         {/* CONTENT GRID */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem', alignItems: 'start'}}>
+        <div className="content-layout">
           
           {/* LEFT: APPOINTMENTS */}
           <div>
@@ -111,9 +111,9 @@ const Dashboard = () => {
                 </button>
               </div>
             ) : (
-              <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
+              <div className="appointment-list">
                 {appointments.map((appt) => (
-                  <div key={appt.id} className="glass-panel" style={{padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div key={appt.id} className="glass-panel appointment-item">
                     <div>
                       <p style={{fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.25rem'}}>
                         {appt.visit_type} Consultation
@@ -123,7 +123,7 @@ const Dashboard = () => {
                       </p>
                     </div>
 
-                    <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'}}>
                       <span style={{
                         padding: '0.4rem 1rem',
                         borderRadius: '2rem',
@@ -136,7 +136,7 @@ const Dashboard = () => {
                       </span>
                       
                       {appt.status === "BOOKED" && (
-                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                        <div className="appointment-actions">
                           <button onClick={() => navigate(`/chat/${appt.id}`)} className="btn-primary" style={{padding: '0.5rem 1rem', fontSize: '0.9rem'}}>
                             Chat
                           </button>
@@ -155,17 +155,19 @@ const Dashboard = () => {
                       )}
 
                       {(appt.status === "CANCELLED" || appt.status === "COMPLETED") && (
-                        <button 
-                          onClick={() => {
-                            api.delete(`/appointments/${appt.id}`)
-                              .then(() => setAppointments(appointments.filter(a => a.id !== appt.id)))
-                              .catch(() => alert("Failed to remove"));
-                          }} 
-                          className="btn-secondary" 
-                          style={{padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderColor: 'var(--border-glass)', color: 'var(--text-secondary)'}}
-                        >
-                          <Trash2 size={16} /> Remove
-                        </button>
+                        <div className="appointment-actions">
+                          <button 
+                            onClick={() => {
+                              api.delete(`/appointments/${appt.id}`)
+                                .then(() => setAppointments(appointments.filter(a => a.id !== appt.id)))
+                                .catch(() => alert("Failed to remove"));
+                            }} 
+                            className="btn-secondary" 
+                            style={{padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderColor: 'var(--border-glass)', color: 'var(--text-secondary)'}}
+                          >
+                            <Trash2 size={16} /> Remove
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -67,17 +67,17 @@ const BookAppointment = () => {
     <div className="page-container">
       <Navbar />
 
-      <section className="container-xl" style={{paddingTop: '8rem', paddingBottom: '4rem'}}>
-        <div className="glass-panel" style={{padding: '3rem', maxWidth: '1000px', margin: '0 auto'}}>
+      <section className="container-xl" style={{paddingTop: '6rem', paddingBottom: '4rem'}}>
+        <div className="glass-panel" style={{padding: 'clamp(1.5rem, 5vw, 3rem)', maxWidth: '1000px', margin: '0 auto'}}>
 
-          <h2 className="section-title" style={{fontSize: '2.5rem', marginBottom: '2.5rem'}}>
+          <h2 className="section-title" style={{fontSize: 'clamp(2rem, 4vw, 2.5rem)', marginBottom: '2.5rem'}}>
             Book Appointment
           </h2>
 
           {/* VISIT TYPE */}
           <div style={{marginBottom: '2.5rem'}}>
             <h3 className="text-subtitle" style={{fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)'}}>Visit Type</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem'}}>
               {["New Consultation", "Follow-up", "General Checkup"].map(type => (
                 <button
                   key={type}
@@ -86,6 +86,8 @@ const BookAppointment = () => {
                   }
                   className="btn-secondary"
                   style={{
+                    padding: '0.8rem 1rem',
+                    fontSize: '0.95rem',
                     backgroundColor: appointment.visit_type === type ? 'var(--accent-blue)' : 'var(--white-glass)',
                     color: appointment.visit_type === type ? '#fff' : 'var(--text-primary)',
                     borderColor: appointment.visit_type === type ? 'var(--accent-blue)' : 'var(--border-glass)'
@@ -126,7 +128,7 @@ const BookAppointment = () => {
               {doctors.length === 0 ? (
                 <p style={{color: 'var(--text-secondary)'}}>No doctors available</p>
               ) : (
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem'}}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem'}}>
                   {doctors.map(doc => (
                     <div
                       key={doc.id}
@@ -159,10 +161,11 @@ const BookAppointment = () => {
           {/* DATE */}
           <div style={{marginBottom: '2.5rem'}}>
             <h3 className="text-subtitle" style={{fontWeight: '700', marginBottom: '1rem', color: 'var(--text-primary)'}}>Select Date</h3>
-            <div style={{maxWidth: '300px'}}>
+            <div style={{maxWidth: '100%'}}>
               <input
                 type="date"
                 className="form-input"
+                style={{maxWidth: '300px'}}
                 onChange={e =>
                   setAppointment(a => ({ ...a, appointment_date: e.target.value }))
                 }
@@ -177,9 +180,9 @@ const BookAppointment = () => {
             {!appointment.doctor_id || !appointment.appointment_date ? (
               <p style={{color: 'var(--text-secondary)'}}>Please select a doctor and date first.</p>
             ) : availableSlots.length === 0 ? (
-              <p style={{color: '#ef4444', fontWeight: 600}}>No slots available for this date. The doctor might be unavailable or fully booked.</p>
+              <p style={{color: '#ef4444', fontWeight: 600}}>No slots available for this date.</p>
             ) : (
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem'}}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.75rem'}}>
                 {availableSlots.map(slot => (
                   <button
                     key={slot}
@@ -188,7 +191,8 @@ const BookAppointment = () => {
                     }
                     className="btn-secondary"
                     style={{
-                      padding: '0.8rem 1.25rem',
+                      padding: '0.8rem 0.5rem',
+                      fontSize: '0.9rem',
                       backgroundColor: appointment.time_slot === slot ? 'var(--text-primary)' : 'var(--white-glass)',
                       color: appointment.time_slot === slot ? '#fff' : 'var(--text-primary)',
                     }}
@@ -204,9 +208,9 @@ const BookAppointment = () => {
           <button
             onClick={handleReview}
             className="btn-primary btn-block"
-            style={{padding: '1.25rem', fontSize: '1.25rem'}}
+            style={{padding: '1.25rem', fontSize: '1.1rem'}}
           >
-            Review & Confirm Appointment
+            Review & Confirm
           </button>
 
         </div>
