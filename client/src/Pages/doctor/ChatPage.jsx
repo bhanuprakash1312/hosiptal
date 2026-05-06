@@ -52,70 +52,89 @@ const ChatPage = () => {
     // Establish WebSocket Connection
     let socket = null;
     let reconnectTimeout = null;
+    const [debugLog, setDebugLog] = useState([]);
+
+    const addLog = (msg) => {
+      setDebugLog(prev => [...prev.slice(-5), `${new Date().toLocaleTimeString()}: ${msg}`]);
+    };
 
     const connect = () => {
       const token = localStorage.getItem("token");
-      if (!token || !conversationId) return;
+      if (!token) return addLog("No token found");
+      if (!conversationId) return addLog("No convo ID");
 
       let base = api.defaults.baseURL || "";
-      base = base.replace(/\/$/, "");
-      const wsBase = base.replace(/^http/, 'ws');
+      // Clean up base URL
+      base = base.trim().replace(/\/+$/, "");
       
-      // Use encodeURIComponent for the token to handle special characters
+      // Force WSS if on HTTPS
+      let wsBase = base.replace(/^http/, 'ws');
+      if (window.location.protocol === "https:") {
+        wsBase = wsBase.replace(/^ws:/, 'wss:');
+      }
+
       const wsUrl = `${wsBase}/chat/ws/${conversationId}?token=${encodeURIComponent(token)}`;
       
-      console.log("Attempting WebSocket connection...");
-      socket = new WebSocket(wsUrl);
-      io.current = socket;
+      addLog(`Connecting...`);
+      
+      try {
+        socket = new WebSocket(wsUrl);
+        io.current = socket;
 
-      socket.onopen = () => {
-        console.log("WebSocket Connected ✅");
-        setConnected(true);
-        if (pendingMessages.current.length > 0) {
-          pendingMessages.current.forEach(msg => {
-            socket.send(JSON.stringify({ message: msg }));
-          });
-          pendingMessages.current = [];
-        }
-      };
-
-      socket.onmessage = async (event) => {
-        try {
-          const incomingMsg = JSON.parse(event.data);
-          if (incomingMsg.type === "offer") {
-            setIncomingCall(incomingMsg);
-          } else if (incomingMsg.type === "answer") {
-            if (peerConnection.current) {
-              await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingMsg.answer));
-            }
-          } else if (incomingMsg.type === "ice-candidate") {
-            if (peerConnection.current) {
-              await peerConnection.current.addIceCandidate(new RTCIceCandidate(incomingMsg.candidate));
-            }
-          } else if (incomingMsg.type === "call-rejected") {
-            alert("The video call was declined.");
-            cleanupCall();
-          } else if (incomingMsg.type === "end-call") {
-            cleanupCall();
-            setIncomingCall(null);
-          } else {
-            setMessages(prev => [...prev, incomingMsg]);
+        socket.onopen = () => {
+          addLog("Connected ✅");
+          setConnected(true);
+          if (pendingMessages.current.length > 0) {
+            pendingMessages.current.forEach(msg => {
+              socket.send(JSON.stringify({ message: msg }));
+            });
+            pendingMessages.current = [];
           }
-        } catch (err) {
-          console.error("Error processing message:", err);
-        }
-      };
+        };
 
-      socket.onclose = (event) => {
-        console.warn(`WebSocket Closed ❌ (Code: ${event.code}, Reason: ${event.reason})`);
-        setConnected(false);
-        // Auto-reconnect after 3 seconds
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
+        socket.onmessage = async (event) => {
+          try {
+            const incomingMsg = JSON.parse(event.data);
+            if (incomingMsg.type === "offer") {
+              setIncomingCall(incomingMsg);
+            } else if (incomingMsg.type === "answer") {
+              if (peerConnection.current) {
+                await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingMsg.answer));
+              }
+            } else if (incomingMsg.type === "ice-candidate") {
+              if (peerConnection.current) {
+                await peerConnection.current.addIceCandidate(new RTCIceCandidate(incomingMsg.candidate));
+              }
+            } else if (incomingMsg.type === "call-rejected") {
+              alert("The video call was declined.");
+              cleanupCall();
+            } else if (incomingMsg.type === "end-call") {
+              cleanupCall();
+              setIncomingCall(null);
+            } else {
+              setMessages(prev => {
+                const exists = prev.some(m => m.id === incomingMsg.id || (m.tempId && m.tempId === incomingMsg.tempId));
+                if (exists) return prev.map(m => (m.tempId === incomingMsg.tempId ? incomingMsg : m));
+                return [...prev, incomingMsg];
+              });
+            }
+          } catch (err) {
+            console.error("Error processing message:", err);
+          }
+        };
 
-      socket.onerror = (error) => {
-        console.error("WebSocket Error ⚠️:", error);
-      };
+        socket.onclose = (event) => {
+          addLog(`Closed ❌ (Code: ${event.code})`);
+          setConnected(false);
+          reconnectTimeout = setTimeout(connect, 4000);
+        };
+
+        socket.onerror = (error) => {
+          addLog("Connection Error ⚠️");
+        };
+      } catch (err) {
+        addLog(`Crashed: ${err.message}`);
+      }
     };
 
     connect();
@@ -126,6 +145,30 @@ const ChatPage = () => {
       cleanupCall();
     };
   }, [conversationId]);
+
+  const sendMessage = () => {
+    if (text.trim()) {
+      const tempMsg = {
+        id: Date.now(),
+        tempId: Date.now(),
+        message: text,
+        sender_role: "ME",
+        created_at: new Date().toISOString(),
+        type: "chat"
+      };
+
+      setMessages(prev => [...prev, tempMsg]);
+
+      if (connected && io.current && io.current.readyState === WebSocket.OPEN) {
+        io.current.send(JSON.stringify({ message: text, tempId: tempMsg.tempId }));
+        setText("");
+      } else {
+        pendingMessages.current.push(text);
+        setText("");
+        addLog("Msg queued (offline)");
+      }
+    }
+  };
 
   const initPeerConnection = (localStream) => {
     peerConnection.current = new RTCPeerConnection({
@@ -221,20 +264,7 @@ const ChatPage = () => {
 
   const send = async (e) => {
     if (e) e.preventDefault();
-    if (!text.trim()) return;
-
-    const currentText = text;
-    setText(""); // Optimistic clear
-
-    // If socket is open send immediately, otherwise queue the message
-    if (io.current && io.current.readyState === WebSocket.OPEN) {
-      io.current.send(JSON.stringify({ message: currentText }));
-    } else {
-      // queue message to send when socket opens
-      pendingMessages.current.push(currentText);
-      // optionally notify user that message will be sent when connected
-      console.warn("WebSocket not open yet — queuing message");
-    }
+    sendMessage();
   };
 
   const handleKeyDown = (e) => {
@@ -244,12 +274,12 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="page-container" style={{display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-primary)'}}>
+    <div className="page-container" style={{display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: 'var(--bg-primary)', overflow: 'hidden'}}>
       
       {/* Header */}
       <div className="glass-panel" style={{
         borderRadius: 0, 
-        padding: '1.25rem 2rem', 
+        padding: 'clamp(0.75rem, 3vw, 1.25rem) clamp(1rem, 5vw, 2rem)', 
         borderLeft: 'none', 
         borderRight: 'none', 
         borderTop: 'none', 
@@ -261,17 +291,17 @@ const ChatPage = () => {
         justifyContent: 'space-between',
         background: 'rgba(255, 255, 255, 0.85)'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 'clamp(0.5rem, 2vw, 1rem)', flex: 1}}>
           <button 
             onClick={() => navigate(-1)} 
             className="btn-secondary"
-            style={{padding: '0.4rem 0.8rem', borderRadius: '0.5rem', fontSize: '0.9rem'}}
+            style={{padding: '0.4rem 0.6rem', borderRadius: '0.5rem', fontSize: '0.85rem'}}
           >
-            ← Back
+            ←
           </button>
           <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
             <div style={{
-              width: '40px', height: '40px', borderRadius: '50%', 
+              width: 'clamp(30px, 8vw, 40px)', height: 'clamp(30px, 8vw, 40px)', borderRadius: '50%', 
               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', fontWeight: 'bold'
@@ -279,95 +309,117 @@ const ChatPage = () => {
               +
             </div>
             <div>
-              <h2 style={{fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', margin: 0, lineHeight: 1.2}}>
-                Live Medical Consultation
+              <h2 style={{fontSize: 'clamp(1rem, 4vw, 1.25rem)', fontWeight: '800', color: 'var(--text-primary)', margin: 0, lineHeight: 1.2}}>
+                Consultation
               </h2>
-              <span style={{fontSize: '0.85rem', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.25rem'}}>
-                <span style={{width: '6px', height: '6px', backgroundColor: '#10b981', borderRadius: '50%', display: 'inline-block'}}></span>
-                Active and Secure
-              </span>
-              <span style={{
-                fontSize: '0.75rem', 
-                color: connected ? '#10b981' : '#ef4444', 
-                fontWeight: '700',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                marginTop: '0.2rem'
-              }}>
-                {connected ? "● Connected" : "○ Disconnected (Retrying...)"}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.1rem' }}>
+                <div style={{
+                  backgroundColor: connected ? '#10b981' : '#ef4444',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                }}></div>
+                <span style={{fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)'}}>
+                  {connected ? 'Online' : 'Reconnecting...'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
         
         {/* Video Call Controls */}
-        <div>
+        <div style={{display: 'flex', gap: '0.5rem'}}>
           {!isVideoActive ? (
-            <button onClick={startVideoCall} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1.5rem', borderRadius: '2rem' }}>
-              <span style={{ fontSize: '1.2rem' }}>📹</span> Start Video Call
+            <button 
+              onClick={startVideoCall} 
+              className="btn-primary" 
+              style={{ 
+                padding: '0.6rem', 
+                borderRadius: '50%', 
+                width: '45px', 
+                height: '45px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontSize: '1.2rem'
+              }}
+              title="Start Video Call"
+            >
+              📹
             </button>
           ) : (
-            <button onClick={endVideoCall} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1.5rem', borderRadius: '2rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)' }}>
-              <span style={{ fontSize: '1.2rem' }}>📵</span> End Call
+            <button 
+              onClick={endVideoCall} 
+              style={{ 
+                backgroundColor: '#ef4444', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '50%', 
+                width: '45px', 
+                height: '45px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontSize: '1.2rem',
+                cursor: 'pointer'
+              }}
+              title="End Call"
+            >
+              📵
             </button>
           )}
         </div>
       </div>
 
+      {/* Diagnostic Log (Small overlay) */}
+      {debugLog.length > 0 && !connected && (
+        <div style={{
+          position: 'fixed', top: '70px', left: '10px', right: '10px', 
+          fontSize: '0.65rem', color: '#666', zIndex: 100,
+          fontFamily: 'monospace', background: 'rgba(245, 245, 245, 0.9)', 
+          padding: '5px', borderRadius: '4px', pointerEvents: 'none'
+        }}>
+          {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+        </div>
+      )}
+
       {/* Incoming Call Prompt Overlay */}
       {incomingCall && !isVideoActive && (
         <div style={{
-          backgroundColor: '#3b82f6',
-          color: 'white',
-          padding: '1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
+          position: 'fixed', top: '10px', left: '10px', right: '10px', zIndex: 1000,
+          backgroundColor: '#3b82f6', color: 'white', padding: '1rem',
+          borderRadius: '1rem', display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', boxShadow: '0 10px 30px rgba(59, 130, 246, 0.5)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span style={{ fontSize: '1.5rem', animation: 'pulse 1.5s infinite' }}>📞</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>📞</span>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700' }}>Incoming Video Call...</h3>
-              <p style={{ margin: 0, opacity: 0.9, fontSize: '0.9rem' }}>{incomingCall.sender_name || 'Participant'} is calling you.</p>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700' }}>Incoming Call</h3>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: '0.8rem' }}>Patient Calling...</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button onClick={rejectCall} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: '2rem', fontWeight: '600', cursor: 'pointer' }}>
-              Decline
-            </button>
-            <button onClick={acceptCall} style={{ backgroundColor: '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: '2rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)' }}>
-              Accept Call
-            </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={rejectCall} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '2rem', fontSize: '0.85rem' }}>Reject</button>
+            <button onClick={acceptCall} style={{ backgroundColor: '#10b981', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '2rem', fontSize: '0.85rem' }}>Accept</button>
           </div>
         </div>
       )}
 
-      {/* Video Call UI Overlay (If Active) */}
+      {/* Video Call UI Overlay */}
       {isVideoActive && (
         <div style={{
           backgroundColor: '#000',
+          height: '40vh',
           display: 'flex',
-          gap: '1rem',
-          padding: '1rem',
           position: 'relative'
         }}>
-          {/* Remote Video (Doctor/Patient) */}
-          <div style={{ flex: 1, backgroundColor: '#111', borderRadius: '1rem', overflow: 'hidden', position: 'relative', minHeight: '300px' }}>
-            <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', bottom: '1rem', left: '1rem', color: 'white', backgroundColor: 'rgba(0,0,0,0.5)', padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem' }}>
-              Remote View
-            </div>
-          </div>
-          
-          {/* Local Video (Self) */}
-          <div style={{ width: '200px', height: '150px', backgroundColor: '#222', borderRadius: '1rem', overflow: 'hidden', position: 'absolute', bottom: '2rem', right: '2rem', border: '3px solid rgba(255,255,255,0.2)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-            <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', bottom: '0.5rem', left: '0.5rem', color: 'white', backgroundColor: 'rgba(0,0,0,0.5)', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.7rem' }}>
-              You
-            </div>
-          </div>
+          <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <video ref={localVideoRef} autoPlay playsInline muted style={{ 
+            width: 'clamp(100px, 30vw, 180px)', height: 'clamp(75px, 22vw, 135px)', 
+            backgroundColor: '#222', borderRadius: '0.75rem', overflow: 'hidden', 
+            position: 'absolute', bottom: '1rem', right: '1rem', 
+            border: '2px solid rgba(255,255,255,0.3)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' 
+          }} />
         </div>
       )}
 
@@ -375,73 +427,31 @@ const ChatPage = () => {
       <div style={{
         flex: 1, 
         overflowY: 'auto', 
-        padding: '2rem', 
+        padding: 'clamp(1rem, 4vw, 2rem)', 
         display: 'flex', 
         flexDirection: 'column', 
-        gap: '1.5rem', 
-        maxWidth: '1000px', 
-        margin: '0 auto', 
+        gap: '1rem', 
         width: '100%',
-        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(0, 102, 255, 0.03), transparent 80%)'
+        maxWidth: '800px',
+        margin: '0 auto'
       }}>
-        
-        <div style={{textAlign: 'center', margin: '1rem 0'}}>
-          <span style={{
-            backgroundColor: 'rgba(255,255,255,0.6)', 
-            padding: '0.5rem 1rem', 
-            borderRadius: '2rem', 
-            fontSize: '0.85rem', 
-            color: 'var(--text-secondary)',
-            fontWeight: '500',
-            border: '1px solid var(--border-glass)'
-          }}>
-            End-to-end encrypted consultation started
-          </span>
-        </div>
-
         {messages.map(m => {
-          // Assuming the logged in user is the sender role... wait, m.sender_role tells us who sent it.
-          // Better logic: if this is doctor app, doctor sees DOCTOR messages on the right. 
-          // If this is patient app, patient sees PATIENT messages on the right.
-          // Since it's a shared component, we can use localStorage 'role' or simple logic.
-          // The current logic places PATIENT on the right, which indicates this is the Patient's view.
-          // We will update it to check the viewer's role locally (or fallback to doctor's view).
-          
-          const currentUserRole = getRole() || (window.location.pathname.includes('/doctor') ? "DOCTOR" : "PATIENT");
-          // Quick hack: since the route is /chat/:id and usually accessed by patient, let's just color differently based on sender_role
-          // Blue for Doctor, Green for Patient
-          
-          const isDoctor = m.sender_role === "DOCTOR";
+          const isMe = m.sender_role === "ME" || (m.sender_role === (window.location.pathname.includes('/doctor') ? "DOCTOR" : "PATIENT"));
           
           return (
-            <div
-              key={m.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: isDoctor ? 'flex-end' : 'flex-start',
-                width: '100%'
-              }}
-            >
-              <div style={{marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', padding: '0 0.5rem'}}>
-                {m.sender_name || (isDoctor ? "Healthcare Provider" : "Patient")}
-              </div>
-              <div
-                style={{
-                  maxWidth: '75%',
-                  padding: '1rem 1.25rem',
-                  fontSize: '1.05rem',
-                  lineHeight: '1.5',
-                  backgroundColor: isDoctor ? 'var(--accent-blue)' : 'var(--white-glass)',
-                  color: isDoctor ? '#ffffff' : 'var(--text-primary)',
-                  boxShadow: isDoctor ? '0 10px 20px rgba(0, 102, 255, 0.2)' : '0 10px 20px rgba(0,0,0,0.05)',
-                  border: isDoctor ? 'none' : '1px solid var(--border-glass)',
-                  // distinct bubble shapes based on sender
-                  borderRadius: '1.5rem',
-                  borderBottomRightRadius: isDoctor ? '0.25rem' : '1.5rem',
-                  borderBottomLeftRadius: isDoctor ? '1.5rem' : '0.25rem',
-                }}
-              >
+            <div key={m.id} style={{
+              display: 'flex', flexDirection: 'column',
+              alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%'
+            }}>
+              <div style={{
+                maxWidth: '85%', padding: '0.75rem 1rem', fontSize: '0.95rem',
+                backgroundColor: isMe ? 'var(--accent-blue)' : 'var(--white-glass)',
+                color: isMe ? '#ffffff' : 'var(--text-primary)',
+                borderRadius: '1.25rem',
+                borderBottomRightRadius: isMe ? '0.2rem' : '1.25rem',
+                borderBottomLeftRadius: isMe ? '1.25rem' : '0.2rem',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
+              }}>
                 {m.message}
               </div>
             </div>
@@ -451,33 +461,27 @@ const ChatPage = () => {
       </div>
 
       {/* Input Area */}
-      <div className="glass-panel" style={{
-        borderRadius: 0, 
-        padding: '1.5rem', 
-        display: 'flex', 
-        gap: '1rem', 
-        borderLeft: 'none', 
-        borderRight: 'none', 
-        borderBottom: 'none',
-        background: 'rgba(255, 255, 255, 0.85)'
+      <div style={{
+        padding: 'clamp(0.75rem, 3vw, 1.25rem)', 
+        background: 'rgba(255, 255, 255, 0.9)', 
+        borderTop: '1px solid var(--border-glass)',
+        paddingBottom: 'calc(clamp(0.75rem, 3vw, 1.25rem) + env(safe-area-inset-bottom))'
       }}>
-        <form onSubmit={send} style={{maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'flex', gap: '1rem', alignItems: 'center'}}>
+        <form onSubmit={send} style={{maxWidth: '800px', margin: '0 auto', width: '100%', display: 'flex', gap: '0.75rem'}}>
           <input
             value={text}
             onChange={e => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
             className="form-input"
-            style={{flex: 1, backgroundColor: 'rgba(255,255,255,0.9)', padding: '1.25rem', borderRadius: '1.5rem'}}
-            placeholder="Type your medical query or response here..."
+            style={{flex: 1, padding: '0.8rem 1.2rem', borderRadius: '2rem', fontSize: '0.95rem'}}
+            placeholder="Type a message..."
           />
           <button
             type="submit"
             className="btn-primary"
-            style={{padding: '0 2rem', height: '100%', borderRadius: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+            style={{width: '45px', height: '45px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0}}
             disabled={!text.trim()}
           >
-            <span>Send</span>
-            <span style={{fontSize: '1.25rem'}}>→</span>
+            →
           </button>
         </form>
       </div>
