@@ -22,3 +22,18 @@ app.include_router(admin.router)
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to the Hospital Booking Management System API"}
+
+from fastapi.responses import JSONResponse
+from fastapi import Request
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "message": "Internal Server Error",
+            "error": str(exc),
+            "traceback": traceback.format_exc()
+        },
+    )

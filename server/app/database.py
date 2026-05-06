@@ -7,15 +7,20 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Render often provides 'postgres://' which SQLAlchemy 1.4+ doesn't like.
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.strip()
+    # Render often provides 'postgres://' which SQLAlchemy 1.4+ doesn't like.
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 if not DATABASE_URL:
     # Fallback to local SQLite if DATABASE_URL is completely missing
-    # this helps local development if .env is missing
     DATABASE_URL = "sqlite:///./test.db"
-    print("WARNING: DATABASE_URL not found, falling back to local SQLite.")
+    print("DEBUG: DATABASE_URL not found, using local SQLite.")
+else:
+    # Masking password for safe logging
+    masked_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "unknown"
+    print(f"DEBUG: Connecting to database at {masked_url}")
 
 # Supabase Pooler (Transaction mode) often drops idle connections.
 # pool_pre_ping=True will check if the connection is alive before using it.
