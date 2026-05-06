@@ -50,71 +50,79 @@ const ChatPage = () => {
       .catch(err => console.error(err));
 
     // Establish WebSocket Connection
-    const token = localStorage.getItem("token");
-    
-    // Safely construct the WebSocket URL
-    let base = api.defaults.baseURL || "";
-    // Remove any trailing slash to prevent double-slashes
-    base = base.replace(/\/$/, "");
-    
-    // Convert http/https to ws/wss
-    const wsBase = base.replace(/^http/, 'ws');
-    const wsUrl = `${wsBase}/chat/ws/${conversationId}?token=${token}`;
-    
-    console.log("Connecting to WebSocket:", wsUrl);
-    const socket = new WebSocket(wsUrl);
-    io.current = socket;
+    let socket = null;
+    let reconnectTimeout = null;
 
-    socket.onopen = () => {
-      setConnected(true);
-      // flush any queued messages
-      if (pendingMessages.current.length > 0) {
-        pendingMessages.current.forEach(msg => {
-          try {
-            socket.send(JSON.stringify({ message: msg }));
-          } catch (e) {
-            console.error("Failed to send queued message", e);
-          }
-        });
-        pendingMessages.current = [];
-      }
-    };
+    const connect = () => {
+      const token = localStorage.getItem("token");
+      if (!token || !conversationId) return;
 
-    socket.onmessage = async (event) => {
-      const incomingMsg = JSON.parse(event.data);
+      let base = api.defaults.baseURL || "";
+      base = base.replace(/\/$/, "");
+      const wsBase = base.replace(/^http/, 'ws');
       
-      if (incomingMsg.type === "offer") {
-        setIncomingCall(incomingMsg);
-      } else if (incomingMsg.type === "answer") {
-        if (peerConnection.current) {
-          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingMsg.answer));
+      // Use encodeURIComponent for the token to handle special characters
+      const wsUrl = `${wsBase}/chat/ws/${conversationId}?token=${encodeURIComponent(token)}`;
+      
+      console.log("Attempting WebSocket connection...");
+      socket = new WebSocket(wsUrl);
+      io.current = socket;
+
+      socket.onopen = () => {
+        console.log("WebSocket Connected ✅");
+        setConnected(true);
+        if (pendingMessages.current.length > 0) {
+          pendingMessages.current.forEach(msg => {
+            socket.send(JSON.stringify({ message: msg }));
+          });
+          pendingMessages.current = [];
         }
-      } else if (incomingMsg.type === "ice-candidate") {
-        if (peerConnection.current) {
-          await peerConnection.current.addIceCandidate(new RTCIceCandidate(incomingMsg.candidate));
+      };
+
+      socket.onmessage = async (event) => {
+        try {
+          const incomingMsg = JSON.parse(event.data);
+          if (incomingMsg.type === "offer") {
+            setIncomingCall(incomingMsg);
+          } else if (incomingMsg.type === "answer") {
+            if (peerConnection.current) {
+              await peerConnection.current.setRemoteDescription(new RTCSessionDescription(incomingMsg.answer));
+            }
+          } else if (incomingMsg.type === "ice-candidate") {
+            if (peerConnection.current) {
+              await peerConnection.current.addIceCandidate(new RTCIceCandidate(incomingMsg.candidate));
+            }
+          } else if (incomingMsg.type === "call-rejected") {
+            alert("The video call was declined.");
+            cleanupCall();
+          } else if (incomingMsg.type === "end-call") {
+            cleanupCall();
+            setIncomingCall(null);
+          } else {
+            setMessages(prev => [...prev, incomingMsg]);
+          }
+        } catch (err) {
+          console.error("Error processing message:", err);
         }
-      } else if (incomingMsg.type === "call-rejected") {
-        alert("The video call was declined.");
-        cleanupCall();
-      } else if (incomingMsg.type === "end-call") {
-        cleanupCall();
-        setIncomingCall(null);
-      } else {
-        setMessages(prev => [...prev, incomingMsg]);
-      }
+      };
+
+      socket.onclose = (event) => {
+        console.warn(`WebSocket Closed ❌ (Code: ${event.code}, Reason: ${event.reason})`);
+        setConnected(false);
+        // Auto-reconnect after 3 seconds
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = (error) => {
+        console.error("WebSocket Error ⚠️:", error);
+      };
     };
 
-    socket.onclose = (event) => {
-      console.log("WebSocket connection closed", event);
-      setConnected(false);
-    };
-
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
+    connect();
 
     return () => {
-      socket.close();
+      if (socket) socket.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       cleanupCall();
     };
   }, [conversationId]);
@@ -277,6 +285,17 @@ const ChatPage = () => {
               <span style={{fontSize: '0.85rem', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.25rem'}}>
                 <span style={{width: '6px', height: '6px', backgroundColor: '#10b981', borderRadius: '50%', display: 'inline-block'}}></span>
                 Active and Secure
+              </span>
+              <span style={{
+                fontSize: '0.75rem', 
+                color: connected ? '#10b981' : '#ef4444', 
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                marginTop: '0.2rem'
+              }}>
+                {connected ? "● Connected" : "○ Disconnected (Retrying...)"}
               </span>
             </div>
           </div>
