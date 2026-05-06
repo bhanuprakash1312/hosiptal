@@ -202,20 +202,69 @@ a {
   color: var(--accent-blue);
 }
 
-.nav-btn {
-  background: var(--accent-gradient);
-  color: white;
-  padding: 0.6rem 1.5rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  transition: all var(--t-fast);
-  box-shadow: 0 4px 10px rgba(0, 102, 255, 0.15);
-}
-
 .nav-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(0, 102, 255, 0.25);
   color: white;
+}
+
+.nav-link-provider {
+  font-size: 0.9rem;
+  color: var(--accent-blue);
+  font-weight: 600;
+  transition: all var(--t-fast);
+}
+
+.nav-link-provider:hover {
+  filter: brightness(1.2);
+}
+
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  z-index: 1001;
+  transition: all var(--t-fast);
+}
+
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 80%;
+  max-width: 300px;
+  height: 100vh;
+  background: white;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  padding: 6rem 2rem;
+  gap: 2rem;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+  transition: right var(--t-smooth);
+}
+
+.mobile-menu.active {
+  right: 0;
+}
+
+.mobile-link {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mobile-btn {
+  background: var(--accent-gradient);
+  color: white;
+  padding: 1rem;
+  border-radius: 1rem;
+  text-align: center;
+  font-weight: 700;
+  margin-top: 1rem;
 }
 
 /* Hero Section */
@@ -406,20 +455,61 @@ a {
 }
 
 @media (max-width: 900px) {
-  .hero-glass {
-    flex-direction: column;
-    padding: 2.5rem;
-    text-align: center;
-  }
-  .hero-actions {
-    justify-content: center;
-  }
   .nav-links {
     display: none;
   }
+  
+  .mobile-menu-toggle {
+    display: block;
+  }
+
+  .hero-glass {
+    flex-direction: column;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    gap: 3rem;
+  }
+  
+  .hero-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    width: 100%;
+  }
+
+  .title-hero {
+    font-size: 2.75rem;
+  }
+
   .hero-img-element {
     width: 100%;
-    max-width: 350px;
+    max-width: 300px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    padding: 0 1rem;
+  }
+
+  .container-xl {
+    padding: 0 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .title-hero {
+    font-size: 2.25rem;
+  }
+  
+  .hero-glass {
+    padding: 2rem 1rem;
+  }
+  
+  .auth-card {
+    padding: 2rem 1.5rem;
   }
 }
 
