@@ -51,7 +51,17 @@ const ChatPage = () => {
 
     // Establish WebSocket Connection
     const token = localStorage.getItem("token");
-    const wsUrl = api.defaults.baseURL.replace(/^http/, 'ws') + `/chat/ws/${conversationId}?token=${token}`;
+    
+    // Safely construct the WebSocket URL
+    let base = api.defaults.baseURL || "";
+    // Remove any trailing slash to prevent double-slashes
+    base = base.replace(/\/$/, "");
+    
+    // Convert http/https to ws/wss
+    const wsBase = base.replace(/^http/, 'ws');
+    const wsUrl = `${wsBase}/chat/ws/${conversationId}?token=${token}`;
+    
+    console.log("Connecting to WebSocket:", wsUrl);
     const socket = new WebSocket(wsUrl);
     io.current = socket;
 
